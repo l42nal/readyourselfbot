@@ -2,6 +2,9 @@ import asyncio
 import json
 import random
 import string
+import os
+import qrcode
+import re
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
@@ -14,13 +17,19 @@ PAYMENT_DETAILS = "Переведи 500₽ на СБП +79998887766 (Иван И
 
 # === ХРАНЕНИЕ БИЛЕТОВ ===
 TICKETS_FILE = "tickets.json"
+QRCODE_DIR = "qrcodes"
+
+os.makedirs(QRCODE_DIR, exist_ok=True)
+
+def generate_ticket_code():
+    """Создает случайный 6-значный код."""
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 def load_tickets():
     try:
         with open(TICKETS_FILE, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        # при первом запуске создаем 10 случайных кодов
         tickets = [{"code": generate_ticket_code(), "used": False} for _ in range(10)]
         save_tickets(tickets)
         return tickets
@@ -29,14 +38,18 @@ def save_tickets(tickets):
     with open(TICKETS_FILE, "w") as f:
         json.dump(tickets, f, indent=2)
 
-def generate_ticket_code():
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-
 def get_next_free_ticket(tickets):
     for t in tickets:
         if not t["used"]:
             return t
     return None
+
+def generate_qr_image(ticket_code):
+    """Создает изображение QR-кода и сохраняет в файл."""
+    img = qrcode.make(ticket_code)
+    path = os.path.join(QRCODE_DIR, f"{ticket_code}.png")
+    img.save(path)
+    return path
 
 # === ИНИЦИАЛИЗАЦИЯ ===
 bot = Bot(
@@ -74,21 +87,36 @@ async def confirm_payment(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("🚫 Только админ может подтверждать оплаты.")
 
-    if not message.reply_to_message or not message.reply_to_message.forward_origin:
-        return await message.answer("⚠️ Ответь этой командой на пересланное сообщение от пользователя.")
+    if not message.reply_to_message:
+        await message.reply("❌ Ответь командой /confirm на сообщение с id пользователя.")
+        return
 
-    user_id = message.reply_to_message.forward_origin.sender_user.id
+    # Ищем строку вида "ID пользователя: 693353725"
+    text = message.reply_to_message.text
+    match = re.search(r"ID пользователя:\s*(\d+)", text)
+    if not match:
+        await message.reply("❌ Не удалось найти ID пользователя в сообщении.")
+        return
+
+    user_id = int(match.group(1))
     ticket = get_next_free_ticket(tickets)
     if not ticket:
         return await message.answer("❌ Билеты закончились!")
 
+    # помечаем как использованный
     ticket["used"] = True
     save_tickets(tickets)
 
-    await bot.send_message(
+    # создаем QR-код
+    qr_path = generate_qr_image(ticket["code"])
+
+    # отправляем пользователю QR с подписью
+    await bot.send_photo(
         user_id,
-        f"🎟 Поздравляем! Твой билет: <code>{ticket['code']}</code>"
+        photo=types.FSInputFile(qr_path),
+        caption=f"🎟 Твой билет: <code>{ticket['code']}</code>\nПокажи этот QR-код на входе."
     )
+
     await message.answer(f"✅ Билет {ticket['code']} выдан пользователю {user_id}")
 
 # === ЗАПУСК ===
