@@ -9,11 +9,14 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+from pyzbar.pyzbar import decode
+from PIL import Image
 
 # === НАСТРОЙКИ ===
 BOT_TOKEN = "8485358814:AAEWZtjxMwrTbkbe5iFvO4cigRyjnc9AuUc"
-ADMIN_ID = 693353725  # замените на свой числовой ID
-PAYMENT_DETAILS = "Переведи 500₽ на СБП +79998887766 (Иван Иванов) и пришли сюда чек."
+ADMIN_ID = 693353725
+CONTROLLER_ID = 693353725  # замените на ID контролёра
+PAYMENT_DETAILS = "Переведи 750₽ на СБП +79998887766 (Иван Иванов) и пришли сюда чек."
 
 # === ХРАНЕНИЕ БИЛЕТОВ ===
 TICKETS_FILE = "tickets.json"
@@ -22,7 +25,6 @@ QRCODE_DIR = "qrcodes"
 os.makedirs(QRCODE_DIR, exist_ok=True)
 
 def generate_ticket_code():
-    """Создает случайный 6-значный код."""
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 def load_tickets():
@@ -45,7 +47,6 @@ def get_next_free_ticket(tickets):
     return None
 
 def generate_qr_image(ticket_code):
-    """Создает изображение QR-кода и сохраняет в файл."""
     img = qrcode.make(ticket_code)
     path = os.path.join(QRCODE_DIR, f"{ticket_code}.png")
     img.save(path)
@@ -70,8 +71,11 @@ async def start(message: types.Message):
     await message.answer(text)
 
 # === ПОЛУЧЕНИЕ ЧЕКА ===
-@dp.message(F.photo)
+@dp.message(F.photo, lambda msg: msg.from_user.id != CONTROLLER_ID)
 async def handle_payment_proof(message: types.Message):
+    # Если это контролёр, пропускаем этот хэндлер
+    if message.from_user.id == CONTROLLER_ID:
+        return
     caption = (
         f"💰 <b>Новый чек от @{message.from_user.username or message.from_user.id}</b>\n"
         f"ID пользователя: <code>{message.from_user.id}</code>\n\n"
@@ -81,7 +85,7 @@ async def handle_payment_proof(message: types.Message):
     await bot.send_message(ADMIN_ID, caption)
     await message.answer("📤 Чек отправлен админу на проверку. Ожидай подтверждения!")
 
-# === ПОДТВЕРЖДЕНИЕ ОПЛАТЫ ===
+# === ПОДТВЕРЖДЕНИЕ ОПЛАТЫ АДМИНОМ ===
 @dp.message(Command("confirm"))
 async def confirm_payment(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -91,7 +95,6 @@ async def confirm_payment(message: types.Message):
         await message.reply("❌ Ответь командой /confirm на сообщение с id пользователя.")
         return
 
-    # Ищем строку вида "ID пользователя: 693353725"
     text = message.reply_to_message.text
     match = re.search(r"ID пользователя:\s*(\d+)", text)
     if not match:
@@ -103,21 +106,67 @@ async def confirm_payment(message: types.Message):
     if not ticket:
         return await message.answer("❌ Билеты закончились!")
 
-    # помечаем как использованный
     ticket["used"] = True
     save_tickets(tickets)
-
-    # создаем QR-код
     qr_path = generate_qr_image(ticket["code"])
 
-    # отправляем пользователю QR с подписью
     await bot.send_photo(
         user_id,
         photo=types.FSInputFile(qr_path),
         caption=f"🎟 Твой билет: <code>{ticket['code']}</code>\nПокажи этот QR-код на входе."
     )
-
     await message.answer(f"✅ Билет {ticket['code']} выдан пользователю {user_id}")
+
+# === РЕЖИМ ПРОВЕРКИ БИЛЕТОВ ДЛЯ КОНТРОЛЁРА ===
+controller_state = {}  # {user_id: True/False для режима проверки}
+
+@dp.message(Command("check"))
+async def start_check_mode(message: types.Message):
+    if message.from_user.id != CONTROLLER_ID:
+        return await message.answer("🚫 Только контролёр может проверять билеты.")
+    controller_state[message.from_user.id] = True
+    await message.answer("📸 Отправь фото QR-кода или введи код билета вручную.")
+
+@dp.message(F.photo | F.text, lambda msg: msg.from_user.id == CONTROLLER_ID)
+async def check_ticket(message: types.Message):
+    if message.from_user.id != CONTROLLER_ID:
+        return
+
+    if not controller_state.get(message.from_user.id):
+        return  # Контролёр не в режиме проверки
+
+    # Определяем код билета
+    code = None
+    if message.photo:
+        file_path = f"temp_{message.from_user.id}.jpg"
+        photo = message.photo[-1]
+        await bot.download(photo.file_id, destination=file_path)
+        img = Image.open(file_path)
+        decoded = decode(img)
+        os.remove(file_path)
+        if decoded:
+            code = decoded[0].data.decode()
+        else:
+            await message.answer("❌ QR-код не распознан.")
+            return
+    else:
+        code = message.text.strip()
+
+    # Проверяем билет
+    ticket = next((t for t in tickets if t["code"] == code), None)
+    if not ticket:
+        await message.answer("❌ Билет не найден.")
+        return
+
+    if ticket["used"]:
+        await message.answer("⚠️ Этот билет уже был использован!")
+    else:
+        ticket["used"] = True
+        save_tickets(tickets)
+        await message.answer(f"✅ Билет {code} действителен. Пропускаем!")
+
+    # После проверки выходим из режима
+    controller_state[message.from_user.id] = False
 
 # === ЗАПУСК ===
 async def main():
