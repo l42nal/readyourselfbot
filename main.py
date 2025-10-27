@@ -16,7 +16,7 @@ from PIL import Image
 BOT_TOKEN = "8485358814:AAEWZtjxMwrTbkbe5iFvO4cigRyjnc9AuUc"
 ADMIN_ID = 693353725
 CONTROLLER_ID = 693353725  # замените на ID контролёра
-PAYMENT_DETAILS = "Переведи 750₽ на СБП +79998887766 (Иван Иванов) и пришли сюда чек."
+PAYMENT_DETAILS = "<a href='https://vtb.paymo.ru/collect-money/qr/?transaction=301ac782-e8c6-4274-8567-3376f36e983a'>Оплатить</a>"
 
 # === ХРАНЕНИЕ БИЛЕТОВ ===
 TICKETS_FILE = "tickets.json"
@@ -64,11 +64,24 @@ tickets = load_tickets()
 @dp.message(Command("start"))
 async def start(message: types.Message):
     text = (
-        "🎟 Привет! Чтобы купить билет:\n\n"
+        "Привет 🫂 Я очень рада, что ты решил(-а) присоединиться к нашей семье, где царит любовь и искренность!\n\n"
+        "Чтобы завершить регистрацию на мероприятие, переходи по ссылке для оплаты билета:\n"
         f"{PAYMENT_DETAILS}\n\n"
-        "После оплаты отправь сюда <b>скриншот</b> или фото подтверждения перевода."
+        "Или оплати по прикрепленному QR-коду\n\n"
+        "Жду тебя! ❤️\n\n"
+        "❗️ После оплаты отправь сюда <b>скриншот</b> или фото подтверждения перевода.\n\n"
+        "⚖️ Оплачивая билет, вы принимаете условия "
+        "<a href='https://telegra.ph/Publichnaya-oferta-10-27-8'>публичной оферты</a>."
     )
-    await message.answer(text)
+
+    # путь к уже готовому QR-коду
+    qr_path = "payment_qr.jpg"  # или qr.jpg — смотри по названию файла
+
+    await message.answer_photo(
+        photo=types.FSInputFile(qr_path),
+        caption=text,
+        parse_mode="HTML"
+    )
 
 # === ПОЛУЧЕНИЕ ЧЕКА ===
 @dp.message(F.photo, lambda msg: msg.from_user.id != CONTROLLER_ID)
