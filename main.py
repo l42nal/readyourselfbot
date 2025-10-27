@@ -32,7 +32,7 @@ def load_tickets():
         with open(TICKETS_FILE, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        tickets = [{"code": generate_ticket_code(), "used": False} for _ in range(10)]
+        tickets = [{"code": generate_ticket_code(), "free": True, "used": False} for _ in range(25)]
         save_tickets(tickets)
         return tickets
 
@@ -42,7 +42,7 @@ def save_tickets(tickets):
 
 def get_next_free_ticket(tickets):
     for t in tickets:
-        if not t["used"]:
+        if t["free"]:
             return t
     return None
 
@@ -119,7 +119,7 @@ async def confirm_payment(message: types.Message):
     if not ticket:
         return await message.answer("❌ Билеты закончились!")
 
-    ticket["used"] = True
+    ticket["free"] = False
     save_tickets(tickets)
     qr_path = generate_qr_image(ticket["code"])
 
