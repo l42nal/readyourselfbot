@@ -14,8 +14,8 @@ from PIL import Image
 
 # === НАСТРОЙКИ ===
 BOT_TOKEN = "8485358814:AAEWZtjxMwrTbkbe5iFvO4cigRyjnc9AuUc"
-ADMIN_ID = 693353725
-CONTROLLER_ID = 693353725  # замените на ID контролёра
+ADMIN_ID = 1363368733
+CONTROLLER_ID = 1257512735  # замените на ID контролёра
 PAYMENT_DETAILS = "<a href='https://vtb.paymo.ru/collect-money/qr/?transaction=301ac782-e8c6-4274-8567-3376f36e983a'>Оплатить</a>"
 
 # === ХРАНЕНИЕ БИЛЕТОВ ===
