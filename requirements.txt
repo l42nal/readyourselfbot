@@ -1,0 +1,4 @@
+aiogram==3.13.1
+qrcode==7.4.2
+Pillow==10.4.0
+pyzbar==0.1.9
