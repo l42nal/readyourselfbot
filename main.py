@@ -13,13 +13,12 @@ from pyzbar.pyzbar import decode
 from PIL import Image
 
 # === НАСТРОЙКИ ===
-BOT_TOKEN = "8485358814:AAEWZtjxMwrTbkbe5iFvO4cigRyjnc9AuUc"
-ADMIN_ID = 693353725
-CONTROLLER_ID = 693353725
-PAYMENT_DETAILS = "<a href='https://vtb.paymo.ru/collect-money/qr/?transaction=301ac782-e8c6-4274-8567-3376f36e983a'>Оплатить по реквизитам</a>"
+BOT_TOKEN = 
+ADMIN_ID = 
+CONTROLLER_ID = 
+PAYMENT_DETAILS = 
 
-# ⚡️ Добавь токен YooMoney (из кабинета YooKassa)
-YOO_MONEY_TOKEN = "381764678:TEST:150871"  # Пример тестового токена
+YOO_MONEY_TOKEN = 
 
 # === ФАЙЛЫ ХРАНЕНИЯ ===
 TICKETS_FILE = "tickets.json"
